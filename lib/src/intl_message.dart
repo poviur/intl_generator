@@ -280,7 +280,7 @@ abstract class Message {
 
   /// Return a string representation of this message for use in generated Dart
   /// code.
-  String toCode();
+  String toCode(String? locale);
 
   /// Return a JSON-storable representation of this message which can be
   /// interpolated at runtime.
@@ -350,7 +350,7 @@ class CompositeMessage extends Message {
   CompositeMessage(this.pieces, ComplexMessage? parent) : super(parent) {
     pieces.forEach((x) => x.parent = this);
   }
-  toCode() => pieces.map((each) => each.toCode()).join('');
+  toCode(String? locale) => pieces.map((each) => each.toCode(locale)).join('');
   toJson() => pieces.map((each) => each.toJson()).toList();
   toString() => "CompositeMessage(" + pieces.toString() + ")";
   String expanded([Function f = _nullTransform]) =>
@@ -361,7 +361,7 @@ class CompositeMessage extends Message {
 class LiteralString extends Message {
   String string;
   LiteralString(this.string, Message? parent) : super(parent);
-  toCode() => escapeAndValidateString(string);
+  toCode(String? locale) => escapeAndValidateString(string);
   toJson() => string;
   toString() => "Literal($string)";
   String expanded([Function f = _nullTransform]) => f(this, string);
@@ -414,7 +414,7 @@ class VariableSubstitution extends Message {
   // Although we only allow simple variable references, we always enclose them
   // in curly braces so that there's no possibility of ambiguity with
   // surrounding text.
-  toCode() => "\${${variableName}}";
+  toCode(String? locale) => "\${${variableName}}";
   toJson() => index!;
   toString() => "VariableSubstitution($index)";
   String expanded([Function f = _nullTransform]) => f(this, index);
@@ -518,11 +518,11 @@ class MainMessage extends ComplexMessage {
   /// suitably escaping it.
   void addTranslation(String locale, Message translated) {
     translated.parent = this;
-    translations[locale] = translated.toCode();
+    translations[locale] = translated.toCode(locale);
     jsonTranslations[locale] = translated.toJson();
   }
 
-  toCode() =>
+  toCode(String? locale) =>
       throw new UnsupportedError("MainMessage.toCode requires a locale");
   toJson() =>
       throw new UnsupportedError("MainMessage.toJson requires a locale");
@@ -547,7 +547,7 @@ class MainMessage extends ComplexMessage {
   turnInterpolationBackIntoStringForm(Message message, chunk) {
     if (chunk is String) return escapeAndValidateString(chunk);
     if (chunk is int) return r"${" + message.arguments[chunk] + "}";
-    if (chunk is Message) return chunk.toCode();
+    if (chunk is Message) return chunk.toCode(locale);
     throw new ArgumentError.value(chunk, "Unexpected value in Intl.message");
   }
 
@@ -689,7 +689,7 @@ abstract class SubMessage extends ComplexMessage {
     return "{$mainArgument,$icuMessageName, ${clauses.join("")}}";
   }
 
-  String toCode() {
+  String toCode(String? locale) {
     var out = new StringBuffer();
     out.write('\${');
     out.write(dartMessageName);
@@ -697,7 +697,10 @@ abstract class SubMessage extends ComplexMessage {
     out.write(mainArgument);
     var args = codeAttributeNames.where((attribute) => this[attribute] != null);
     args.fold(
-        out, (StringBuffer buffer, arg) => buffer..write(", $arg: '${this[arg].toCode()}'"));
+        out, (StringBuffer buffer, arg) => buffer..write(", $arg: '${this[arg].toCode(locale)}'"));
+    if (locale != null && locale.isNotEmpty) {
+      out.write(", locale: '$locale'");
+    }
     out.write(")}");
     return out.toString();
   }
@@ -930,7 +933,7 @@ class Select extends SubMessage {
   /// Write out the generated representation of this message. This differs
   /// from Plural/Gender in that it prints a literal map rather than
   /// named arguments.
-  String toCode() {
+  String toCode(String? locale) {
     var out = new StringBuffer();
     out.write('\${');
     out.write(dartMessageName);
@@ -939,7 +942,7 @@ class Select extends SubMessage {
     var args = codeAttributeNames;
     out.write(", {");
     args.fold(out,
-        (StringBuffer buffer, arg) => buffer..write("'$arg': '${this[arg]!.toCode()}', "));
+        (StringBuffer buffer, arg) => buffer..write("'$arg': '${this[arg]!.toCode(locale)}', "));
     out.write("})}");
     return out.toString();
   }
